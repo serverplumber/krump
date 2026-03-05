@@ -1,0 +1,31 @@
+# mill
+.mill/
+.mill-cache/
+.coursier/
+.coursier-cache/
+mill/
+out/
+dist/
+.g8/
+target/
+.metals/
+.bloop/
+project/
+*.class
+*.log
+
+# IDE
+*.swp
+*.swo
+*~
+.DS_Store
+.projectile
+.vscode/
+.idea/
+*.iml
+result
+containers/**/*.tar.gz
+
+# OS
+Thumbs.db
+.env.local
