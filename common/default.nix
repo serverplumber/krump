@@ -1,23 +1,25 @@
 { pkgs }:
 {
   devTools = with pkgs; [
-    nix
-    git
+    bat
     curl
-    wget
+    eza
+    git
+    glow
+    gnugrep
+    gnused
+    harper
+    helix
     jq
     just
-    vim
-    neovim
-    helix
-    starship
-    bat
-    eza
     lowdown
-    glow
-    harper
-    nerd-fonts.jetbrains-mono
+    neovim
     nerd-fonts.fira-code
+    nerd-fonts.jetbrains-mono
+    nix
+    starship
+    vim
+    wget
   ];
 
   env = {
@@ -25,9 +27,9 @@
     FONTCONFIG_PATH = "${pkgs.nerd-fonts.jetbrains-mono}/share/fonts";
   };
 
-shellHook = shell: ''
-  alias ls='${pkgs.eza}/bin/eza --icons'
-  alias tree='${pkgs.eza}/bin/eza --tree --icons'
-  eval "$(${pkgs.starship}/bin/starship init ${shell})"
-'';
+  shellHook = shell: ''
+    alias ls='${pkgs.eza}/bin/eza --icons'
+    alias tree='${pkgs.eza}/bin/eza --tree --icons'
+    eval "$(${pkgs.starship}/bin/starship init ${shell})"
+  '';
 }

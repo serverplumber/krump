@@ -38,6 +38,23 @@ _run-image image:
       -w {{workspace}} \
       {{image}}
 
+_has-nix := `command -v nix || true`
+
+_nix-run target:
+    #!/usr/bin/env bash
+    if [ -n "{{_has-nix}}" ]; then
+        nix run .#{{target}}
+    else
+        {{podman}} run --rm \
+          -v {{project_root}}:{{workspace}}:z \
+          -v nix-store:/nix \
+          --userns keep-id:uid=0,gid=0 \
+          -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
+          -w {{workspace}} \
+          {{nix_image}} \
+          nix run .#{{target}}
+    fi
+
 # Run bare nixOS within a container, mount workspace
 naked-nix:
     {{podman}} run -it --rm \
@@ -45,54 +62,44 @@ naked-nix:
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
       --userns keep-id:uid=0,gid=0 \
-      --userns keep-id:uid=0,gid=0 \
       -w {{workspace}} \
       {{nix_image}}
     
 # Start a dev-shell in container
 dev:
-    just _load-image load-dev
-    just _run-image localhost/dev:latest
+   just _load-image load-dev
+   just _run-image localhost/dev:latest
 
-# Start a dev-shell in container, with fish shell, for the kool kids
-dev-fish:
-    @just _load-image ./containers/dev/dev-container-fish.tar.gz
-    @just _run-image localhost/dev-fish:latest
-
+# Load devcontainer into podman
+devcontainer:
+   just _load-image load-dev
 
 
 # === Development ===
 
-# Enter dev shell (requires nix to be available locally OR use naked-nix)
-#dev:
-#   nix develop
-
 # Build all container images
 build:
-    nix build .#dev-image
-    nix build .#staticserver-image
+    _nix-run build .#dev-image
+    _nix-run build .#staticserver-image
 
 # Build only nix image (bootstrap)
 build-nix:
-    nix build .#nix-image
+    _nix-run build .#nix-image
 
 # Build only dev image
 build-dev:
-    nix build .#dev-image
+    _nix-run build .#dev-image
 
 # Build only staticserver image
 build-staticserver:
-    nix build .#staticserver-image
+    _nix-run build .#staticserver-image
 
 
 # === Running Containers ===
 
-# Run dev container interactively
-run-dev: load-dev
-    {{podman}} run -it --rm \
-      -v {{project_root}}:/work:z \
-      -w /work \
-      dev:latest bash
+# Run prebuilt dev container interactively
+run-dev:
+   just _run-image localhost/dev:latest
 
 # Run staticserver container (serves README and workspace)
 run-staticserver: load-staticserver
@@ -103,21 +110,34 @@ run-staticserver: load-staticserver
 
 # Load dev image into podman
 load-dev:
-    nix run .#load-dev
+    _nix-run run .#load-dev
 
 # Load staticserver image into podman
 load-staticserver:
-    nix run .#load-staticserver
+    _nix-run run .#load-staticserver
 
 # === Utilities ===
+#
+
+# update the nix image used for the dev container
+update-base-image image="mcr.microsoft.com/devcontainers/base" tag="debian-12":
+  {{podman}} run --rm \
+      -v {{project_root}}:{{workspace}}:z \
+      -v nix-store:/nix \
+      -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
+      -w {{workspace}} \
+      {{nix_image}} \
+      nix run nixpkgs#nix-prefetch-docker -- --image-name {{image}} --image-tag {{tag}} \
+      | sed -n '/^{/,$ p' \
+      > ./containers/dev/nix-image.nix
 
 # Show flake outputs
 show:
-    nix flake show
+    _nix-run flake show
 
 # Update flake.lock
 update:
-    nix flake update
+    _nix-run flake update
 
 # Garbage collect old builds
 gc:
@@ -129,4 +149,4 @@ fmt:
 
 # Print environment variables that will be set in dev shell
 env:
-    nix develop -c env | sort
+    _nix-run develop -c env | sort
