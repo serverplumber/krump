@@ -57,6 +57,7 @@ in
       paths =
         common.devTools
         ++ [
+          setupScript
           containerDefaults.nixConf
           containerDefaults.tmpDir
           shellRc.bash
