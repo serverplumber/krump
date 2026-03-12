@@ -28,12 +28,16 @@
           system,
           ...
         }:
+        let
+          krump = import ./common/krump.nix { inherit pkgs ; };
+        in
         {
           # Import container modules and set packages
           packages = {
-            dev-image = (import ./containers/dev { inherit pkgs; }).image;
-            staticserver-image = (import ./containers/staticserver { inherit pkgs; }).image;
-            default = (import ./containers/dev { inherit pkgs; }).image;
+            default            = krump.container "dev";
+            busy-krump         = krump.container "busy-krump";
+            dev-image          = krump.container "dev";
+            staticserver-image = krump.container "staticserver";
           };
 
           # Dev shell from shells/

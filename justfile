@@ -40,19 +40,18 @@ _run-image image:
 
 _has-nix := `command -v nix || true`
 
-_nix-run target:
+_nix +args:
     #!/usr/bin/env bash
     if [ -n "{{_has-nix}}" ]; then
-        nix run .#{{target}}
+        nix {{args}}
     else
-        {{podman}} run --rm \
+        podman run --rm \
           -v {{project_root}}:{{workspace}}:z \
           -v nix-store:/nix \
-          --userns keep-id:uid=0,gid=0 \
           -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
           -w {{workspace}} \
           {{nix_image}} \
-          nix run .#{{target}}
+          nix {{args}}
     fi
 
 # Run bare nixOS within a container, mount workspace
@@ -79,20 +78,24 @@ devcontainer:
 
 # Build all container images
 build:
-    _nix-run build .#dev-image
-    _nix-run build .#staticserver-image
+    just _nix "build .#dev-image"
+    just _nix "build .#staticserver-image"
 
 # Build only nix image (bootstrap)
 build-nix:
-    _nix-run build .#nix-image
+    just _nix "build .#nix-image"
 
 # Build only dev image
 build-dev:
-    _nix-run build .#dev-image
+    just _nix "build .#dev-image"
 
 # Build only staticserver image
 build-staticserver:
-    _nix-run build .#staticserver-image
+    just _nix "build .#staticserver-image"
+
+# Build only busy-krump
+build-busy-krump:
+    just _nix "build .#busy-krump"
 
 
 # === Running Containers ===
@@ -110,18 +113,20 @@ run-staticserver: load-staticserver
 
 # Load dev image into podman
 load-dev:
-    _nix-run run .#load-dev
+    _nix run .#load-dev
 
 # Load staticserver image into podman
 load-staticserver:
-    _nix-run run .#load-staticserver
+    _nix run .#load-staticserver
 
 # === Utilities ===
 #
 
 # update the nix image used for the dev container
-update-base-image image="mcr.microsoft.com/devcontainers/base" tag="debian-12":
-  {{podman}} run --rm \
+update-base-image image tag:
+    #!/usr/bin/env bash
+    output="containers/base-image-$(echo {{image}} | tr '/' '-')-{{tag}}.nix"
+    podman run --rm \
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
       -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
@@ -129,24 +134,24 @@ update-base-image image="mcr.microsoft.com/devcontainers/base" tag="debian-12":
       {{nix_image}} \
       nix run nixpkgs#nix-prefetch-docker -- --image-name {{image}} --image-tag {{tag}} \
       | sed -n '/^{/,$ p' \
-      > ./containers/dev/nix-image.nix
+      > $output
+
+# busybox base image example
+update-busybox:
+    just update-base-image busybox latest
 
 # Show flake outputs
-show:
-    _nix-run flake show
+flake-show:
+    just _nix "run flake show"
 
 # Update flake.lock
 update:
-    _nix-run flake update
+    just _nix "run flake update"
 
 # Garbage collect old builds
 gc:
-    nix-collect-garbage -d
+    just _nix "run nikpkgs#nix --store gc"
 
 # Format nix files (requires nixfmt)
 fmt:
-    nixfmt *.nix containers/*/default.nix shells/default.nix
-
-# Print environment variables that will be set in dev shell
-env:
-    _nix-run develop -c env | sort
+    just _nix "run nixpkgs#nixfmt -- **/*.nix"
