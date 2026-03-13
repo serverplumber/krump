@@ -1,4 +1,11 @@
-{ pkgs }:
+let
+  load = name: (import ../containers/${name}
+    { inherit pkgs; }).image;
+in
 {
-  container = name: (import ../containers/${name} { inherit pkgs; }).image;
+  streamContainer = name: load name;
+  app = name: {
+    type = "app";
+    program = "${load name}";
+  };
 }

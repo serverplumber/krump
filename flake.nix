@@ -45,17 +45,8 @@
 
           # Apps for loading images
           apps = {
-            load-dev = {
-              type = "app";
-              program = "${config.packages.dev-image}";
-            };
-
-            load-staticserver = {
-              type = "app";
-              program = "${pkgs.writeShellScriptBin "load-staticserver" ''
-                ${pkgs.podman}/bin/podman load < ${config.packages.staticserver-image}
-              ''}/bin/load-staticserver";
-            };
+            streamDev = krump.streamContainer "dev";
+            streamStaticserver = krump.streamContainer "staticServer";
           };
         };
     };
