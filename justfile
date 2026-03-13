@@ -15,11 +15,30 @@ project_root    := justfile_directory()
 nix_flags := "--extra-experimental-features nix-command --extra-experimental-features flakes"
 nix_envs := "NIX_USER_CONF_FILES=/workspace/.nix-config"
 
-_default:
+_default: bootstrap
     @just --list
 
+_has-nix := `command -v nix || true`
+
+_has-nix-store := `podman volume inspect nix-store &>/dev/null && echo "yes" || echo ""`
+
+_need-nix-store:
+    @[ -n "{{_has-nix-store}}" ] || exit 1
+
+# Start here.
+bootstrap:
+    #!/usr/bin/env bash
+    if [ -z "{{_has-nix-store}}" ]; then
+        echo "Bootstrapping nix-store volume..."
+        {{podman}} run --rm \
+          -v nix-store:/nix \
+          {{nix_image}} \
+          cp -a /nix/. /nix/
+        echo "nix-store volume ready."
+    fi
+
 # Load an image onto the host podman
-_load-image target:
+_load-image target: _need-nix-store
     {{podman}} run --rm \
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
@@ -29,7 +48,7 @@ _load-image target:
       nix {{nix_flags}} run .#{{target}} | {{podman}} load -q
 
 # Run a developpment image
-_run-image image:
+_run-image image: _need-nix-store
     {{podman}} run --rm -it \
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
@@ -38,13 +57,13 @@ _run-image image:
       -w {{workspace}} \
       {{image}}
 
-_has-nix := `command -v nix || true`
-
 _nix +args:
     #!/usr/bin/env bash
+    -set -eo pipefail
     if [ -n "{{_has-nix}}" ]; then
         nix {{args}}
     else
+        just _need-nix-store
         podman run --rm \
           -v {{project_root}}:{{workspace}}:z \
           -v nix-store:/nix \
@@ -55,7 +74,7 @@ _nix +args:
     fi
 
 # Run bare nixOS within a container, mount workspace
-naked-nix:
+naked-nix: _need-nix-store
     {{podman}} run -it --rm \
       -e="{{nix_envs}}" \
       -v {{project_root}}:{{workspace}}:z \
@@ -65,7 +84,7 @@ naked-nix:
       {{nix_image}}
     
 # Start a dev-shell in container
-dev:
+dev: bootstrap
    just _load-image load-dev
    just _run-image localhost/dev:latest
 
@@ -113,20 +132,20 @@ run-staticserver: load-staticserver
 
 # Load dev image into podman
 load-dev:
-    _nix run .#load-dev
+    _nix "run .#load-dev"
 
 # Load staticserver image into podman
 load-staticserver:
-    _nix run .#load-staticserver
+    _nix "run .#load-staticserver"
 
 # === Utilities ===
 #
 
 # update the nix image used for the dev container
-update-base-image image tag:
+update-base-image image tag: _need-nix-store
     #!/usr/bin/env bash
     output="containers/base-image-$(echo {{image}} | tr '/' '-')-{{tag}}.nix"
-    podman run --rm \
+    {{podman}} run --rm \
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
       -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
