@@ -85,37 +85,20 @@ naked-nix: _need-nix-store
     
 # Start a dev-shell in container
 dev: bootstrap
-   just _load-image load-dev
+   just devcontainer
    just _run-image localhost/dev:latest
 
 # Load devcontainer into podman
 devcontainer:
-   just _load-image load-dev
+   just _load-image dev-image
 
+# Load staticserver into podman
+staticserver:
+    just _load-image staticserver-image
 
-# === Development ===
-
-# Build all container images
-build:
-    just _nix "build .#dev-image"
-    just _nix "build .#staticserver-image"
-
-# Build only nix image (bootstrap)
-build-nix:
-    just _nix "build .#nix-image"
-
-# Build only dev image
-build-dev:
-    just _nix "build .#dev-image"
-
-# Build only staticserver image
-build-staticserver:
-    just _nix "build .#staticserver-image"
-
-# Build only busy-krump
-build-busy-krump:
-    just _nix "build .#busy-krump"
-
+# Load busy-krump into podman
+busykrump:
+    just _load-image busykrump-image
 
 # === Running Containers ===
 
@@ -124,19 +107,11 @@ run-dev:
    just _run-image localhost/dev:latest
 
 # Run staticserver container (serves README and workspace)
-run-staticserver: load-staticserver
+run-staticserver: staticserver
     {{podman}} run -it --rm \
       -v {{project_root}}:/workspace:z \
       -p 8080:8080 \
       staticserver:latest
-
-# Load dev image into podman
-load-dev:
-    _nix "run .#load-dev"
-
-# Load staticserver image into podman
-load-staticserver:
-    _nix "run .#load-staticserver"
 
 # === Utilities ===
 #

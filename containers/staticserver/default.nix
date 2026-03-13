@@ -15,7 +15,7 @@
     # darkhttpd is a single statically-linked binary, nothing else needed
     copyToRoot = pkgs.buildEnv {
       name = "staticserver-root";
-      paths = [ pkgs.darkhttps ];
+      paths = [ pkgs.darkhttpd ];
     };
 
     config = {
