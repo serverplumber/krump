@@ -11,6 +11,9 @@ let
       echo "developer:x:1000:" >> /etc/group
       echo "developer:!:19000:0:99999:7:::" >> /etc/shadow
     fi
+    if [ "$#" -gt 0 ]; then
+      exec "$@"
+    fi
     case $SHELL in
       */sh|*/bash) export SHELL=${pkgs.bash}/bin/bash ;;
       */zsh) export SHELL=${pkgs.zsh}/bin/zsh ;;

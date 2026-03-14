@@ -49,9 +49,9 @@ just devcontainer # builds dev image, VSCode/JetBrains picks it up
 ```
 just dev
   └── podman run ghcr.io/nixos/nix        # naked nix container
-        └── nix run .#load-dev             # build & stream dev image
-              └── podman load              # host podman catches the stream
-                    └── podman run dev     # drops you into your shell
+        └── nix run .#load-dev            # build & stream dev image
+              └── podman load             # host podman catches the stream
+                    └── podman run dev    # drops you into your shell
 ```
 
 No registry. No pre-built images. No stale artifacts. The source is the build.
@@ -62,34 +62,38 @@ No registry. No pre-built images. No stale artifacts. The source is the build.
 
 ```
 krump/
-├── flake.nix                  # entry point
-├── justfile                   # developer commands
-├── .nix-config                # nix config for bootstrap container
-├── .devcontainer/
-│   └── devcontainer.json      # one line, stay out of the way
-├── common/
-│   └── default.nix            # devTools, shellHook — single source of truth
-├── shells/
-│   └── default.nix            # bash, zsh, fish shells via nix develop
-└── containers/
-    ├── default.nix             # shared container infrastructure
-    └── dev/
-        └── default.nix        # dev container image
+├──  common
+│   ├──  containers.nix
+│   ├──  default.nix
+│   ├──  krump.nix
+│   └──  shells.nix
+├──  containers
+│   ├──  base-image-busybox-latest.nix
+│   ├──  busy-krump
+│   │   └──  default.nix
+│   ├──  default.nix
+│   ├──  dev
+│   │   ├──  default.nix
+│   │   └──  shellrc.nix
+│   └──  staticserver
+│       └──  default.nix
+├──  flake.lock
+├──  flake.nix
+└──  justfile
 ```
 
 ---
 
 ## Shells
 
-Three shells, one environment. Pick yours:
+`just dev` will just pick up your `$SHELL` automagic, use that.
 
+The supported shells are as follows if you go the local nix route.
 ```bash
 nix develop          # bash (default)
 nix develop .#zsh    # zsh
 nix develop .#fish   # fish
 ```
-
-`just dev` will just pick up your `$SHELL` automagic, use that.
 
 ### Included Tools
 

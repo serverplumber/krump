@@ -22,6 +22,8 @@ _has-nix := `command -v nix || true`
 
 _has-nix-store := `podman volume inspect nix-store &>/dev/null && echo "yes" || echo ""`
 
+_in-container := `[ -f /run/.containerenv ] && echo "yes" || echo ""`
+
 _need-nix-store:
     @[ -n "{{_has-nix-store}}" ] || exit 1
 
@@ -71,6 +73,21 @@ _nix +args:
           -w {{workspace}} \
           {{nix_image}} \
           nix {{args}}
+    fi
+
+_build +cmd:
+    #!/usr/bin/env bash
+    set -eo pipefail
+    if [ -n "{{_in-container}}" ]; then
+        eval {{cmd}}
+    else
+        {{podman}} run --rm \
+          -v {{project_root}}:{{workspace}}:z \
+          -v nix-store:/nix \
+          --userns keep-id:uid=0,gid=0 \
+          -w {{workspace}} \
+          localhost/dev:latest \
+          sh -c "{{cmd}}"
     fi
 
 # Run bare nixOS within a container, mount workspace
@@ -149,3 +166,18 @@ gc:
 # Format nix files (requires nixfmt)
 fmt:
     just _nix "run nixpkgs#nixfmt -- **/*.nix"
+
+# Demo: build pipeline pattern
+# lowdown converts README.md → assets/index.html inside the dev container
+build:
+    mkdir -p {{project_root}}/assets
+    just _build "lowdown -s -Thtml README.md -o assets/index.html"
+
+# Demo: serve pipeline pattern  
+# loads staticserver image then serves ./assets on port 8080
+# this is the hello world of: build artifact → drop in dir → serve it
+serve: build (_load-image "staticserver-image")
+    {{podman}} run --rm \
+      -v {{project_root}}/assets:/assets:z \
+      -p 8080:8080 \
+      staticserver:latest

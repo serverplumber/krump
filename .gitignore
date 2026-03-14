@@ -1,18 +1,4 @@
-# mill
-.mill/
-.mill-cache/
-.coursier/
-.coursier-cache/
-mill/
-out/
-dist/
-.g8/
-target/
-.metals/
-.bloop/
-project/
-*.class
-*.log
+assets/
 
 # IDE
 *.swp

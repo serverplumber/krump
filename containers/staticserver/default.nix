@@ -8,12 +8,11 @@
   #   - JAR files with jetty
   #   - Docker images from other builders
 
-  image = pkgs.dockerTools.buildImage {
+  image = pkgs.dockerTools.streamLayeredImage {
     name = "staticserver";
     tag = "latest";
 
-    # darkhttpd is a single statically-linked binary, nothing else needed
-    copyToRoot = pkgs.buildEnv {
+    contents = pkgs.buildEnv {
       name = "staticserver-root";
       paths = [ pkgs.darkhttpd ];
     };
