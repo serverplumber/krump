@@ -50,7 +50,6 @@ let
 
 in
 {
-  description = "Interactive development environment"
   # The dev container: everything needed for interactive development
   image = pkgs.dockerTools.streamLayeredImage {
     name = "${projectName}-dev";
