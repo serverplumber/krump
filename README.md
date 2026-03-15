@@ -19,7 +19,9 @@ Most dev environment tooling makes one of two mistakes: it either assumes too mu
 
 ---
 
-## Prerequisites
+## Quickstart
+
+Prerequisites:
 
 - [`podman`](https://podman.io)
 - [`just`](https://just.systems)
@@ -28,13 +30,14 @@ That's it. Nix bootstraps itself.
 
 ---
 
-## Quickstart
 
+```sh
+mkdir myproject && cd myproject
+curl -fsSL https://gist.githubusercontent.com/serverplumber/4ec8be62530ec915b785c4139b895606/raw/install.sh | sh
+```
+
+Then:
 ```bash
-# Clone and go
-git clone https://github.com/serverplumber/krump my-project
-cd my-project
-
 # CLI dev workflow
 just dev          # builds dev image, drops you into your shell
 
