@@ -1,9 +1,9 @@
-{ pkgs }:
+{ pkgs, projectName }:
 
 let
-  common = import ../../common { inherit pkgs; };
+  krump = import ../../krump { inherit pkgs; };
   containerDefaults = import ../../containers { inherit pkgs; };
-  shellRc = import ./shellrc.nix { inherit pkgs common; };
+  shellRc = import ./shellrc.nix { inherit pkgs krump; };
   # Setup script to create developer user if needed (optional for local dev)
   setupScript = pkgs.writeShellScriptBin "setup-dev-user" ''
     if ! id -u developer > /dev/null 2>&1; then
@@ -50,15 +50,16 @@ let
 
 in
 {
+  description = "Interactive development environment"
   # The dev container: everything needed for interactive development
   image = pkgs.dockerTools.streamLayeredImage {
-    name = "dev";
+    name = "${projectName}-dev";
     tag = "latest";
 
     contents = pkgs.buildEnv {
       name = "dev-root";
       paths =
-        common.devTools
+        krump.devTools
         ++ [
           setupScript
           containerDefaults.nixConf
@@ -105,7 +106,7 @@ in
       Entrypoint = [ "${setupScript}/bin/setup-dev-user" ];
       Cmd = [ ];
       Env = [
-        "PATH=${pkgs.lib.makeBinPath common.devTools}:${pkgs.coreutils}/bin:/bin:/usr/bin"
+        "PATH=${pkgs.lib.makeBinPath krump.devTools}:${pkgs.coreutils}/bin:/bin:/usr/bin"
         "NIXPKGS_ALLOW_UNFREE=1"
         "FONTCONFIG_PATH=${pkgs.nerd-fonts.jetbrains-mono}/share/fonts"
         "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"

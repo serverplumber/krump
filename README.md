@@ -62,7 +62,7 @@ No registry. No pre-built images. No stale artifacts. The source is the build.
 
 ```
 krump/
-├──  common
+├──  krump
 │   ├──  containers.nix
 │   ├──  default.nix
 │   ├──  krump.nix
@@ -129,7 +129,7 @@ The dev container is identical to `nix develop -i` — same tools, same aliases,
 
 ### Adding tools
 
-Edit `common/default.nix` and add your tools to `devTools` and add your tools to `devTools`.
+Edit `krump/default.nix` and add your tools to `devTools` and add your tools to `devTools`.
 ```nix
 devTools = with pkgs; [
   # add yours here
@@ -142,7 +142,7 @@ Tools appear in both shells and containers automatically.
 
 ### Shell aliases and prompt
 
-Edit `common/default.nix`:
+Edit `krump/default.nix`:
 
 ```nix
 shellHook = shell: ''

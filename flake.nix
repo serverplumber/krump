@@ -12,10 +12,18 @@
       nixpkgs,
       flake-parts,
     }:
+    let
+      projectName = "krump";
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
-        ./common/shells.nix
-        ./common/containers.nix
+        ./krump/shells.nix
+        ./krump/containers.nix
       ];
+      _module.args = { inherit projectName; };
+      flake.templates.default = {
+        path = ./.;
+        description = "krump: nix dev container & build pipeline";
+      };
     };
 }

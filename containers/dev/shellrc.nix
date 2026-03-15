@@ -1,20 +1,20 @@
-{ pkgs, common }:
+{ pkgs, krump }:
 {
   bash = pkgs.writeTextFile {
     name = "bashrc";
     destination = "/etc/bashrc";
-    text = common.shellHook "bash";
+    text = krump.shellHook "bash";
   };
 
   zsh = pkgs.writeTextFile {
     name = "zshrc";
     destination = "/etc/zshrc";
-    text = common.shellHook "zsh";
+    text = krump.shellHook "zsh";
   };
 
   fish = pkgs.writeTextFile {
     name = "fish-config";
     destination = "/etc/fish/config.fish";
-    text = common.shellHook "fish";
+    text = krump.shellHook "fish";
   };
 }
