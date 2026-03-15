@@ -6,7 +6,7 @@
 ❯ just dev
 ```
 
----
+______________________________________________________________________
 
 ## Philosophy
 
@@ -17,7 +17,7 @@ Most dev environment tooling makes one of two mistakes: it either assumes too mu
 - **Hermetic builds** — same environment on every machine, every time
 - **Fork to customize** — your opinions belong in your fork, not in a config file
 
----
+______________________________________________________________________
 
 ## Quickstart
 
@@ -28,8 +28,7 @@ Prerequisites:
 
 That's it. Nix bootstraps itself.
 
----
-
+______________________________________________________________________
 
 ```sh
 mkdir myproject && cd myproject
@@ -37,6 +36,7 @@ curl -fsSL https://gist.githubusercontent.com/serverplumber/4ec8be62530ec915b785
 ```
 
 Then:
+
 ```bash
 # CLI dev workflow
 just dev          # builds dev image, drops you into your shell
@@ -45,7 +45,7 @@ just dev          # builds dev image, drops you into your shell
 just devcontainer # builds dev image, VSCode/JetBrains picks it up
 ```
 
----
+______________________________________________________________________
 
 ## How It Works
 
@@ -59,7 +59,7 @@ just dev
 
 No registry. No pre-built images. No stale artifacts. The source is the build.
 
----
+______________________________________________________________________
 
 ## Structure
 
@@ -85,13 +85,14 @@ krump/
 └──  justfile
 ```
 
----
+______________________________________________________________________
 
 ## Shells
 
 `just dev` will just pick up your `$SHELL` automagic, use that.
 
 The supported shells are as follows if you go the local nix route.
+
 ```bash
 nix develop          # bash (default)
 nix develop .#zsh    # zsh
@@ -100,39 +101,54 @@ nix develop .#fish   # fish
 
 ### Included Tools
 
-| Tool       | Why                              |
+| Tool | Why |
 |------------|----------------------------------|
-| `eza`      | `ls` for the cool kids           |
-| `bat`      | a nice pager with code colouring |
-| `starship` | a good prompt                    |
-| `helix`    | because Bram is ded              |
-| `just`     | make hurts the brain             |
-| `glow`     | markdown in terminal             |
-| `lowdown`  | markdown → html                  |
-| `harper`   | grammar linter                   |
-| `jq`       | JSON wrangling                   |
+| `eza` | `ls` for the cool kids |
+| `bat` | a nice pager with code colouring |
+| `starship` | a good prompt |
+| `helix` | because Bram is ded |
+| `just` | make hurts the brain |
+| `glow` | markdown in terminal |
+| `lowdown` | markdown → html |
+| `harper` | grammar linter |
+| `jq` | JSON wrangling |
 
----
+______________________________________________________________________
 
 ## Containers
 
 Krump uses `dockerTools.streamLayeredImage` — images stream directly into podman, nothing touches disk.
 
 ```bash
-just dev           # build, load and run dev container
-just devcontainer  # build and load for IDE use
-just naked-nix     # raw nix container for modifying the flake itself
+just devcontainer  # Load {projectName}-dev into podman
+just staticserver  # Load staticserver into podman 
+just busykrump     # Load busykrump into podman
 ```
 
 The dev container is identical to `nix develop -i` — same tools, same aliases, same prompt. Devcontainer users get the exact same environment as CLI users.
 
----
+When you need a container, just create a directory in `containers`.
+Drop in a `default.nix` which describes your container.
+
+Two examples
+are provided `staticserver` is the simplest possible server;
+darkhttpd exposing this 'README.md' as dinkily rendered with
+`lowdown`. See `just build` and `just serve` for the complete
+workflow.
+
+`busykrump` is an example of how to use a base image in your
+nix containers. It uses the `just update-base-image` task
+to create a base image description in `./containers`. The
+rest is obvious, read the example.
+
+______________________________________________________________________
 
 ## Customizing
 
 ### Adding tools
 
 Edit `krump/default.nix` and add your tools to `devTools` and add your tools to `devTools`.
+
 ```nix
 devTools = with pkgs; [
   # add yours here
@@ -171,7 +187,7 @@ nix flake init -t github:serverplumber/krump
 
 Copies the full structure into your project. Fork and own your opinions.
 
----
+______________________________________________________________________
 
 ## Nix Cache
 
@@ -183,22 +199,21 @@ podman volume create nix-store
 
 Seed it once from a running container, then every build is fast.
 
----
+______________________________________________________________________
 
 ## devcontainer.json
 
-
 Don't touch it.
 
----
+______________________________________________________________________
 
 ## Supported Shells
 
 - bash
-- zsh  
+- zsh
 - fish
 
----
+______________________________________________________________________
 
 ## Supported Platforms
 
@@ -207,7 +222,7 @@ Don't touch it.
 - `x86_64-darwin`
 - `aarch64-darwin`
 
----
+______________________________________________________________________
 
 ## Why Not Devcontainers Directly?
 
@@ -217,12 +232,12 @@ Devcontainers are great for consumption, not great for construction. They have o
 
 Maybe eventually. Nix rollbacks and atomic generations are genuinely compelling. But containers + podman/k8s is a mature, portable workflow that doesn't require betting your whole stack on NixOS in prod. Krump gets you nix's reproducibility guarantees at the build layer without that commitment.
 
----
+______________________________________________________________________
 
 ## License
 
 MIT
 
----
+______________________________________________________________________
 
 > Named after the dance. Functional, a bit aggressive, unfairly overlooked.

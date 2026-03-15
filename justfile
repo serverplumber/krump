@@ -6,6 +6,7 @@ set shell := ["bash", "-eo", "pipefail", "-c"]
 # -----------------------------
 # Config
 # -----------------------------
+project_name := "krump"
 nix_image := "ghcr.io/nixos/nix"
 podman := "podman"
 workspace       := "/workspace"
@@ -24,6 +25,10 @@ _has-nix-store := `podman volume inspect nix-store &>/dev/null && echo "yes" || 
 
 _in-container := `[ -f /run/.containerenv ] && echo "yes" || echo ""`
 
+[no-exit-message]
+_not-in-container:
+    @[ ! -f /run/.containerenv ] || { echo "leave container to run this"; exit 1; }
+
 _need-nix-store:
     @[ -n "{{_has-nix-store}}" ] || exit 1
 
@@ -40,7 +45,7 @@ bootstrap:
     fi
 
 # Load an image onto the host podman
-_load-image target: _need-nix-store
+_load-image target: _not-in-container _need-nix-store
     {{podman}} run --rm \
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
@@ -50,7 +55,7 @@ _load-image target: _need-nix-store
       nix {{nix_flags}} run .#{{target}} | {{podman}} load -q
 
 # Run a developpment image
-_run-image image: _need-nix-store
+_run-image image: _not-in-container _need-nix-store
     {{podman}} run --rm -it \
       -v {{project_root}}:{{workspace}}:z \
       -v nix-store:/nix \
@@ -62,7 +67,7 @@ _run-image image: _need-nix-store
 _nix +args:
     #!/usr/bin/env bash
     -set -eo pipefail
-    if [ -n "{{_has-nix}}" ]; then
+    if [ -n "$(command -v nix || true)" ]; then
         nix {{args}}
     else
         just _need-nix-store
@@ -91,7 +96,7 @@ _build +cmd:
     fi
 
 # Run bare nixOS within a container, mount workspace
-naked-nix: _need-nix-store
+naked-nix: _not-in-container _need-nix-store
     {{podman}} run -it --rm \
       -e="{{nix_envs}}" \
       -v {{project_root}}:{{workspace}}:z \
@@ -101,20 +106,20 @@ naked-nix: _need-nix-store
       {{nix_image}}
     
 # Start a dev-shell in container
-dev: bootstrap
+dev: _not-in-container bootstrap
    just devcontainer
-   just _run-image localhost/dev:latest
+   just _run-image localhost/{{project_name}}-dev:latest
 
 # Load devcontainer into podman
-devcontainer:
+devcontainer: _not-in-container
    just _load-image dev-image
 
 # Load staticserver into podman
-staticserver:
+staticserver: _not-in-container 
     just _load-image staticserver-image
 
-# Load busy-krump into podman
-busykrump:
+# Load busykrump into podman
+busykrump: _not-in-container
     just _load-image busykrump-image
 
 # === Running Containers ===

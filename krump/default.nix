@@ -13,6 +13,7 @@
     jq
     just
     lowdown
+    mdformat
     neovim
     nerd-fonts.fira-code
     nerd-fonts.jetbrains-mono
