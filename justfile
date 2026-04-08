@@ -108,7 +108,7 @@ naked-nix: _not-in-container _need-nix-store
 # Start a dev-shell in container
 dev: _not-in-container bootstrap
    just devcontainer
-   just _run-image localhost/{{project_name}}-dev:latest
+   just run-dev
 
 # Load devcontainer into podman
 devcontainer: _not-in-container
@@ -126,7 +126,7 @@ busykrump: _not-in-container
 
 # Run prebuilt dev container interactively
 run-dev:
-   just _run-image localhost/dev:latest
+   just _run-image localhost/{{project_name}}-dev:latest
 
 # Run staticserver container (serves README and workspace)
 run-staticserver: staticserver
