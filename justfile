@@ -33,7 +33,7 @@ _need-nix-store:
     @[ -n "{{_has-nix-store}}" ] || exit 1
 
 # Start here.
-bootstrap:
+bootstrap: devcontainer-json
     #!/usr/bin/env bash
     if [ -z "{{_has-nix-store}}" ]; then
         echo "Bootstrapping nix-store volume..."
@@ -43,6 +43,9 @@ bootstrap:
           cp -a /nix/. /nix/
         echo "nix-store volume ready."
     fi
+
+devcontainer-json:
+    echo '{"name":"{{project_name}}","image":"localhost/{{project_name}}-dev:latest","remoteUser":"root","mounts":[{"source":"nix-store","target":"/nix","type":"volume"}],"runArgs":["--userns=keep-id:uid=0,gid=0"]}' > .devcontainer/devcontainer.json
 
 # Load an image onto the host podman
 _load-image target: _not-in-container _need-nix-store
