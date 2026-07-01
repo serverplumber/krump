@@ -69,7 +69,7 @@ _run-image image: _not-in-container _need-nix-store
 
 _nix +args:
     #!/usr/bin/env bash
-    -set -eo pipefail
+    set -eo pipefail
     if [ -n "$(command -v nix || true)" ]; then
         nix {{args}}
     else
@@ -94,7 +94,7 @@ _build +cmd:
           -v nix-store:/nix \
           --userns keep-id:uid=0,gid=0 \
           -w {{workspace}} \
-          localhost/dev:latest \
+          localhost/{{project_name}}-dev:latest \
           sh -c "{{cmd}}"
     fi
 
@@ -161,19 +161,19 @@ update-busybox:
 
 # Show flake outputs
 flake-show:
-    just _nix "run flake show"
+    just _nix {{nix_flags}} flake show
 
 # Update flake.lock
 update:
-    just _nix "run flake update"
+    just _nix {{nix_flags}} flake update
 
 # Garbage collect old builds
 gc:
-    just _nix "run nikpkgs#nix --store gc"
+    just _nix {{nix_flags}} store gc
 
 # Format nix files (requires nixfmt)
 fmt:
-    just _nix "run nixpkgs#nixfmt -- **/*.nix"
+    just _nix {{nix_flags}} run nixpkgs#nixfmt -- **/*.nix
 
 # Demo: build pipeline pattern
 # lowdown converts README.md → assets/index.html inside the dev container
