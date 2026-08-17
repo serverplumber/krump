@@ -1,243 +1,110 @@
 # krump
 
-> An opinionated, hermetic dev environment base. Nix builds it. Podman runs it. You just code.
+> A nix dev environment and container pipeline that needs nothing on your host but `podman` and `just`. Nix builds it. Podman runs it. No registry, ever.
 
 ```
 ❯ just dev
 ```
 
-______________________________________________________________________
+---
 
-## Philosophy
+## The idea
 
-Most dev environment tooling makes one of two mistakes: it either assumes too much about the host, or it gives you a container you can't introspect or modify. Krump does neither.
+Nix gives you hermetic builds. The price is usually that everyone who touches your project has to install and understand nix first, and that price is high enough that most teams never pay it.
 
-- **Nix is the source of truth** — tools, shells, containers, all of it
-- **No host assumptions** — only `podman` and `just` required to bootstrap
-- **Hermetic builds** — same environment on every machine, every time
-- **Fork to customize** — your opinions belong in your fork, not in a config file
+Krump doesn't ask them to. Nix runs *inside a container*, builds your images there, and streams them straight into your host podman. Your host stays clean. The bootstrap requirement is two tools, neither of which is nix.
 
-______________________________________________________________________
+```
+just dev
+  └── podman run ghcr.io/nixos/nix        # naked nix, ephemeral
+        └── nix run .#dev-image           # build & stream, nothing hits disk
+              └── podman load             # host podman catches the stream
+                    └── podman run dev    # you're in your shell
+```
+
+`dockerTools.streamLayeredImage` writes the image to stdout; `podman load` reads it from stdin. There is no tarball, no registry, no cached artifact to go stale, and no third party in the path between your source and your running container. The source *is* the build.
+
+The cost of ephemeral nix — re-downloading the world on every invocation — is paid once into a persistent `nix-store` podman volume, seeded on bootstrap. After that it's fast.
+
+## Ideas I'd defend
+
+**One definition, two consumption modes.** `krump/default.nix` exports `devTools`, `env`, and `shellHook`. Both the `mkShell` dev shells and the dev container image consume that same list. The devcontainer and `nix develop` are identical environments *by construction*, not by anyone remembering to update both. Add `ripgrep` to `devTools` and it appears in your shell, your container, and your colleague's IDE.
+
+**Containers are discovered, not registered.** `krump/containers.nix` reads the `containers/` directory and emits a flake app per subdirectory. Drop in `containers/postgres/default.nix` exposing an `image` attribute, and `postgres-image` exists. There is no list to keep in sync — the filesystem is the list.
+
+**`devcontainer.json` is generated.** It's a just recipe, not a file you maintain. IDE integration is a thin consumption layer over an image nix built entirely; you get the IDE without conceding the build.
+
+**Recipes know where they are.** `_not-in-container` guards on `/run/.containerenv`; `_build` executes inline when already inside the dev image and shells into it when outside. The same `just build` works from either side.
+
+**Base images are pinned, not pulled.** `just update-base-image busybox latest` runs `nix-prefetch-docker` and writes a pinned expression into `containers/`. External base images enter your tree as content-addressed nix, not as a floating tag.
+
+**Fork to customize.** Your opinions belong in your fork, not in a config schema I have to anticipate. There is no plugin system, and there won't be one.
+
+## Status: it works, and it's rough
+
+I use it. It's how [opensauce_dirt](https://github.com/serverplumber/opensauce_dirt) is built and deployed — app, PostgreSQL, and Caddy images, streamed to a VPS over ssh with no registry involved. The idea has held up under real use and I haven't regretted it once.
+
+The implementation is another matter. It's young, I haven't run it against many projects, and every new project I point it at surfaces something. That's fine — that's what finding out looks like — but you should know it before you adopt it.
+
+Known rough edges:
+
+- **Container builds are Linux-only.** The dev shells build on all four platforms; `containers.nix` declares `x86_64-linux` and `aarch64-linux` only. On macOS you get `nix develop`, not `just dev`.
+- **The dev image is x86_64 in practice.** The FHS shim in `containers/dev/default.nix` hardcodes `/lib/x86_64-linux-gnu` and `ld-linux-x86-64.so.2`. aarch64 is declared and not really delivered.
+- **That FHS shim is a shim.** Copying glibc and libstdc++ into FHS paths so IDE server binaries can find them is exactly the kind of hack nix exists to avoid. It's there because VSCode's remote server assumes FHS. It works. It is not principled and it will break on something.
+- **`sandbox = false`** in the container's `nix.conf`, because nix-in-podman needs it. A real caveat on the hermeticity claim, stated rather than buried.
+- **`just dev` rebuilds the image every time** rather than checking whether anything changed.
+
+Issues welcome. Expect them to be found faster than they're fixed.
 
 ## Quickstart
 
-Prerequisites:
+Requires [`podman`](https://podman.io) and [`just`](https://just.systems). Not docker — the rootless user namespace handling matters here.
 
-- [`podman`](https://podman.io)
-- [`just`](https://just.systems)
-
-That's it. Nix bootstraps itself.
-
-______________________________________________________________________
-
-```sh
-mkdir myproject && cd myproject
-curl -fsSL https://gist.githubusercontent.com/serverplumber/4ec8be62530ec915b785c4139b895606/raw/install.sh | sh
+```bash
+nix flake init -t github:serverplumber/krump   # if you have nix
 ```
 
 Then:
 
 ```bash
-# CLI dev workflow
-just dev          # builds dev image, drops you into your shell
-
-# IDE / devcontainer workflow  
-just devcontainer # builds dev image, VSCode/JetBrains picks it up
+just dev           # build dev image, drop into your $SHELL
+just devcontainer  # build dev image, let VSCode/JetBrains pick it up
+just --list        # everything else
 ```
 
-______________________________________________________________________
-
-## How It Works
-
-```
-just dev
-  └── podman run ghcr.io/nixos/nix        # naked nix container
-        └── nix run .#load-dev            # build & stream dev image
-              └── podman load             # host podman catches the stream
-                    └── podman run dev    # drops you into your shell
-```
-
-No registry. No pre-built images. No stale artifacts. The source is the build.
-
-______________________________________________________________________
-
-## Structure
-
-```
-krump/
-├──  krump
-│   ├──  containers.nix
-│   ├──  default.nix
-│   ├──  krump.nix
-│   └──  shells.nix
-├──  containers
-│   ├──  base-image-busybox-latest.nix
-│   ├──  busy-krump
-│   │   └──  default.nix
-│   ├──  default.nix
-│   ├──  dev
-│   │   ├──  default.nix
-│   │   └──  shellrc.nix
-│   └──  staticserver
-│       └──  default.nix
-├──  flake.lock
-├──  flake.nix
-└──  justfile
-```
-
-______________________________________________________________________
-
-## Shells
-
-`just dev` will just pick up your `$SHELL` automagic, use that.
-
-The supported shells are as follows if you go the local nix route.
-
-```bash
-nix develop          # bash (default)
-nix develop .#zsh    # zsh
-nix develop .#fish   # fish
-```
-
-### Included Tools
-
-| Tool | Why |
-|------------|----------------------------------|
-| `eza` | `ls` for the cool kids |
-| `bat` | a nice pager with code colouring |
-| `starship` | a good prompt |
-| `helix` | because Bram is ded |
-| `just` | make hurts the brain |
-| `glow` | markdown in terminal |
-| `lowdown` | markdown → html |
-| `harper` | grammar linter |
-| `jq` | JSON wrangling |
-
-______________________________________________________________________
-
-## Containers
-
-Krump uses `dockerTools.streamLayeredImage` — images stream directly into podman, nothing touches disk.
-
-```bash
-just devcontainer  # Load {projectName}-dev into podman
-just staticserver  # Load staticserver into podman 
-just busykrump     # Load busykrump into podman
-```
-
-The dev container is identical to `nix develop -i` — same tools, same aliases, same prompt. Devcontainer users get the exact same environment as CLI users.
-
-When you need a container, just create a directory in `containers`.
-Drop in a `default.nix` which describes your container.
-
-Two examples
-are provided `staticserver` is the simplest possible server;
-darkhttpd exposing this 'README.md' as dinkily rendered with
-`lowdown`. See `just build` and `just serve` for the complete
-workflow.
-
-`busykrump` is an example of how to use a base image in your
-nix containers. It uses the `just update-base-image` task
-to create a base image description in `./containers`. The
-rest is obvious, read the example.
-
-______________________________________________________________________
-
-## Customizing
-
-### Adding tools
-
-Edit `krump/default.nix` and add your tools to `devTools` and add your tools to `devTools`.
-
-```nix
-devTools = with pkgs; [
-  # add yours here
-  ripgrep
-  fd
-];
-```
-
-Tools appear in both shells and containers automatically.
-
-### Shell aliases and prompt
-
-Edit `krump/default.nix`:
-
-```nix
-shellHook = shell: ''
-  alias ls='${pkgs.eza}/bin/eza --icons'
-  # add yours here
-  eval "$(${pkgs.starship}/bin/starship init ${shell})"
-'';
-```
-
-### Using as a flake input
+Or consume it as an input and extend `devTools` / `shellHook` in your own flake:
 
 ```nix
 inputs.krump.url = "github:serverplumber/krump";
 ```
 
-Import `devTools` and `shellHook` from krump, extend in your project flake.
+## Adding a container
 
-### Using as a template
+Create a directory under `containers/` with a `default.nix` that takes `{ pkgs, projectName }` and returns an attrset with an `image` attribute built by `streamLayeredImage`. It becomes `<dirname>-image` automatically.
 
-```bash
-nix flake init -t github:serverplumber/krump
-```
+Two worked examples ship in the repo:
 
-Copies the full structure into your project. Fork and own your opinions.
+- **`staticserver`** — the simplest possible thing: darkhttpd serving a directory. `just serve` renders this README to HTML with `lowdown` inside the dev container, drops it in `assets/`, then serves it. That's the whole build-artifact → directory → serve pipeline in two recipes.
+- **`busykrump`** — how to build on a pinned external base image, paired with `just update-busybox`.
 
-______________________________________________________________________
+## Included tools
 
-## Nix Cache
+`bat` · `curl` · `eza` · `git` · `glow` · `harper` · `helix` · `jq` · `just` · `lowdown` · `mdformat` · `neovim` · `nix` · `starship` · `vim` · `wget`, plus Fira Code and JetBrains Mono nerd fonts. Shells: bash, zsh, fish — `just dev` picks up your `$SHELL`.
 
-On first run, nix downloads everything. Subsequent runs use a persistent podman volume:
+Edit `devTools` in `krump/default.nix` to change any of it.
 
-```bash
-podman volume create nix-store
-```
+## Why not devcontainers directly?
 
-Seed it once from a running container, then every build is fast.
+Devcontainers are good for consumption and bad for construction. Their opinions about image building don't compose with hermetic tooling. Krump builds with nix and uses devcontainers only as the IDE-facing layer.
 
-______________________________________________________________________
+## Why not NixOS?
 
-## devcontainer.json
+Maybe eventually — atomic generations and rollbacks are genuinely compelling. But podman and k8s are a mature, portable target, and krump gets you nix's guarantees at the build layer without betting the production stack on NixOS.
 
-Don't touch it.
+---
 
-______________________________________________________________________
+MIT.
 
-## Supported Shells
-
-- bash
-- zsh
-- fish
-
-______________________________________________________________________
-
-## Supported Platforms
-
-- `x86_64-linux`
-- `aarch64-linux`
-- `x86_64-darwin`
-- `aarch64-darwin`
-
-______________________________________________________________________
-
-## Why Not Devcontainers Directly?
-
-Devcontainers are great for consumption, not great for construction. They have opinions about how images are built that don't compose well with hermetic build tooling. Krump uses devcontainers as a thin consumption layer over images built entirely by nix — you get IDE integration without giving up reproducibility.
-
-## Why Not NixOS?
-
-Maybe eventually. Nix rollbacks and atomic generations are genuinely compelling. But containers + podman/k8s is a mature, portable workflow that doesn't require betting your whole stack on NixOS in prod. Krump gets you nix's reproducibility guarantees at the build layer without that commitment.
-
-______________________________________________________________________
-
-## License
-
-MIT
-
-______________________________________________________________________
+---
 
 > Named after the dance. Functional, a bit aggressive, unfairly overlooked.
