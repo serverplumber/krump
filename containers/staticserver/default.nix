@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, ... }:
 
 {
   # Minimal static file server container

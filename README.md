@@ -48,8 +48,7 @@ The implementation is another matter. It's young, I haven't run it against many 
 
 Known rough edges:
 
-- **Container builds are Linux-only.** The dev shells build on all four platforms; `containers.nix` declares `x86_64-linux` and `aarch64-linux` only. On macOS you get `nix develop`, not `just dev`.
-- **The dev image is x86_64 in practice.** The FHS shim in `containers/dev/default.nix` hardcodes `/lib/x86_64-linux-gnu` and `ld-linux-x86-64.so.2`. aarch64 is declared and not really delivered.
+- **macOS is wired up but unverified.** See below — the design works out, and the arch-specific bugs that blocked it are fixed, but I don't own a Mac and none of it has been run on one. Treat it as untested, not as working.
 - **That FHS shim is a shim.** Copying glibc and libstdc++ into FHS paths so IDE server binaries can find them is exactly the kind of hack nix exists to avoid. It's there because VSCode's remote server assumes FHS. It works. It is not principled and it will break on something.
 - **`sandbox = false`** in the container's `nix.conf`, because nix-in-podman needs it. A real caveat on the hermeticity claim, stated rather than buried.
 - **`just dev` rebuilds the image every time** rather than checking whether anything changed.
@@ -61,8 +60,17 @@ Issues welcome. Expect them to be found faster than they're fixed.
 Requires [`podman`](https://podman.io) and [`just`](https://just.systems). Not docker — the rootless user namespace handling matters here.
 
 ```bash
-nix flake init -t github:serverplumber/krump   # if you have nix
+REF=v0.1.0
+curl -fsSLO "https://raw.githubusercontent.com/serverplumber/krump/$REF/install.sh"
+echo "b10c041f28ccfa8e67cb76169de1f9a2264bbdf10b03b2dc4b11dc3122966483  install.sh" | sha256sum -c
+sh install.sh
 ```
+
+On macOS, `sha256sum` doesn't exist — substitute `shasum -a 256 -c` for that third line. Everything else is the same.
+
+`install.sh` is [checked into this repo](install.sh) — read it first, it's forty lines. It materializes the template with nix running inside podman, so the two-tool bootstrap holds. If you already have nix on the host it uses that instead, and `nix flake init -t github:serverplumber/krump/v0.1.0` skips the script entirely.
+
+On the deliberate lack of a `curl | sh`: the hash is the pin, not the tag. A git tag can be force-moved, so fetching from `$REF` buys you a stable name and `sha256sum -c` buys you the integrity — you need both, and you need the file on disk to check it before it runs. If you'd rather not trust that a tag stayed put, swap `$REF` for the full commit sha; the same hash verifies. Every krump release documents its `install.sh` hash here, and `just check-install-sha` fails the build if this line and the file ever drift apart.
 
 Then:
 
@@ -72,6 +80,23 @@ just devcontainer  # build dev image, let VSCode/JetBrains pick it up
 just --list        # everything else
 ```
 
+## macOS
+
+`just dev` is supposed to work on macOS, for a reason that falls out of the design rather than being bolted on: podman on macOS *is* a Linux VM. `podman run ghcr.io/nixos/nix` starts a Linux container inside that VM, the nix in it identifies as `aarch64-linux` on Apple Silicon, and it builds the Linux image natively. Then `podman load` catches the stream in the same VM. No host nix, no cross-compilation, no Linux builder — the indirection krump already has is exactly the indirection macOS needs.
+
+What that means concretely: `nix flake init` / `install.sh`, `just dev`, `just devcontainer`, and the container recipes all go through podman and should behave the same. `nix develop` also works natively, since the dev shells are built for all four platforms.
+
+Deliberately *not* offered: `nix run .#dev-image` with host nix on macOS. Those apps only exist for Linux systems. A darwin-native build of a Linux container image is meaningless, and pointing the darwin app at the Linux package set would just fail later with a confusing "I am a 'aarch64-darwin'" error unless you'd separately set up a Linux builder. Use podman; that's the supported path.
+
+Two caveats worth knowing before you try:
+
+- **Your project must live somewhere the podman machine shares.** `$HOME` is shared by default; a project outside it will bind-mount as an empty directory rather than erroring.
+- **`--userns keep-id` requires a rootless podman machine.** That's the default, but a rootful machine will reject it.
+
+**None of this has been run on a Mac.** I don't have one. What I can say precisely: the two things that definitely broke macOS are fixed — the FHS shim derived its paths from a hardcoded `x86_64-linux-gnu` and `ld-linux-x86-64.so.2`, which on aarch64 produced an image that built cleanly and shimmed nothing, and `:z` SELinux relabeling is now dropped off Linux. Both fixes are verified by evaluating the aarch64-linux image, which is as far as an x86_64 Linux box can take it. If you run it on a Mac, I'd genuinely like the bug report.
+
+## Consuming krump as a flake input
+
 Or consume it as an input and extend `devTools` / `shellHook` in your own flake:
 
 ```nix
@@ -80,7 +105,7 @@ inputs.krump.url = "github:serverplumber/krump";
 
 ## Adding a container
 
-Create a directory under `containers/` with a `default.nix` that takes `{ pkgs, projectName }` and returns an attrset with an `image` attribute built by `streamLayeredImage`. It becomes `<dirname>-image` automatically.
+Create a directory under `containers/` with a `default.nix` that takes `{ pkgs, projectName, ... }` and returns an attrset with an `image` attribute built by `streamLayeredImage`. It becomes `<dirname>-image` automatically — hyphens and all, so `containers/my-thing/` is `my-thing-image`. Keep the `...`: `streamContainer` passes every argument to every container, and a container that names only the ones it uses will fail to evaluate.
 
 Two worked examples ship in the repo:
 

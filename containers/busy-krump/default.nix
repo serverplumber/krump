@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, ... }:
 let
   baseImage = pkgs.dockerTools.pullImage (import ../base-image-busybox-latest.nix);
   

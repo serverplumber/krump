@@ -16,6 +16,10 @@ project_root    := justfile_directory()
 nix_flags := "--extra-experimental-features nix-command --extra-experimental-features flakes"
 nix_envs := "NIX_USER_CONF_FILES=/workspace/.nix-config"
 
+# SELinux relabeling is a Linux concept. On macOS the bind mount is virtiofs
+# out of the podman machine, where :z can fail outright — so drop it there.
+z := if os() == "linux" { ":z" } else { "" }
+
 _default: bootstrap
     @just --list
 
@@ -50,7 +54,7 @@ devcontainer-json:
 # Load an image onto the host podman
 _load-image target: _not-in-container _need-nix-store
     {{podman}} run --rm \
-      -v {{project_root}}:{{workspace}}:z \
+      -v {{project_root}}:{{workspace}}{{z}} \
       -v nix-store:/nix \
       --userns keep-id:uid=0,gid=0 \
       -w {{workspace}} \
@@ -60,7 +64,7 @@ _load-image target: _not-in-container _need-nix-store
 # Run a developpment image
 _run-image image: _not-in-container _need-nix-store
     {{podman}} run --rm -it \
-      -v {{project_root}}:{{workspace}}:z \
+      -v {{project_root}}:{{workspace}}{{z}} \
       -v nix-store:/nix \
       --userns keep-id:uid=0,gid=0 \
       -e SHELL \
@@ -75,7 +79,7 @@ _nix +args:
     else
         just _need-nix-store
         podman run --rm \
-          -v {{project_root}}:{{workspace}}:z \
+          -v {{project_root}}:{{workspace}}{{z}} \
           -v nix-store:/nix \
           -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
           -w {{workspace}} \
@@ -90,7 +94,7 @@ _build +cmd:
         eval {{cmd}}
     else
         {{podman}} run --rm \
-          -v {{project_root}}:{{workspace}}:z \
+          -v {{project_root}}:{{workspace}}{{z}} \
           -v nix-store:/nix \
           --userns keep-id:uid=0,gid=0 \
           -w {{workspace}} \
@@ -102,7 +106,7 @@ _build +cmd:
 naked-nix: _not-in-container _need-nix-store
     {{podman}} run -it --rm \
       -e="{{nix_envs}}" \
-      -v {{project_root}}:{{workspace}}:z \
+      -v {{project_root}}:{{workspace}}{{z}} \
       -v nix-store:/nix \
       --userns keep-id:uid=0,gid=0 \
       -w {{workspace}} \
@@ -123,7 +127,7 @@ staticserver: _not-in-container
 
 # Load busykrump into podman
 busykrump: _not-in-container
-    just _load-image busykrump-image
+    just _load-image busy-krump-image
 
 # === Running Containers ===
 
@@ -131,10 +135,11 @@ busykrump: _not-in-container
 run-dev:
    just _run-image localhost/{{project_name}}-dev:latest
 
-# Run staticserver container (serves README and workspace)
+# Run staticserver container (serves ./assets on port 8080)
 run-staticserver: staticserver
+    mkdir -p {{project_root}}/assets
     {{podman}} run -it --rm \
-      -v {{project_root}}:/workspace:z \
+      -v {{project_root}}/assets:/assets{{z}} \
       -p 8080:8080 \
       staticserver:latest
 
@@ -146,7 +151,7 @@ update-base-image image tag: _need-nix-store
     #!/usr/bin/env bash
     output="containers/base-image-$(echo {{image}} | tr '/' '-')-{{tag}}.nix"
     {{podman}} run --rm \
-      -v {{project_root}}:{{workspace}}:z \
+      -v {{project_root}}:{{workspace}}{{z}} \
       -v nix-store:/nix \
       -e NIX_USER_CONF_FILES={{workspace}}/.nix-config \
       -w {{workspace}} \
@@ -158,6 +163,17 @@ update-base-image image tag: _need-nix-store
 # busybox base image example
 update-busybox:
     just update-base-image busybox latest
+
+# macOS ships shasum, not sha256sum. Both print "<hash>  <file>".
+_sha256 := if os() == "macos" { "shasum -a 256" } else { "sha256sum" }
+
+# Print the sha256 of install.sh, for pasting into the README on release
+install-sha:
+    @{{_sha256}} install.sh
+
+# Verify the sha256 documented in the README still matches install.sh
+check-install-sha:
+    @grep -oE '[0-9a-f]{64}  install\.sh' README.md | {{_sha256}} -c -
 
 # Show flake outputs
 flake-show:
@@ -186,6 +202,6 @@ build:
 # this is the hello world of: build artifact → drop in dir → serve it
 serve: build (_load-image "staticserver-image")
     {{podman}} run --rm \
-      -v {{project_root}}/assets:/assets:z \
+      -v {{project_root}}/assets:/assets{{z}} \
       -p 8080:8080 \
       staticserver:latest
