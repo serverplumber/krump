@@ -100,14 +100,58 @@ check-devcontainer-json:
 # Build an image with nix-in-podman and stream it straight into host podman.
 # streamLayeredImage writes the tarball to stdout, `podman load` reads it from
 # stdin: no tarball on disk, no registry, no cached artifact to go stale.
+#
+# Skipped entirely when the image already loaded is the one this source would
+# produce. The cache key is the streamer derivation's own store path: contents,
+# config, and fakeRootCommands all feed the derivation that produces it, so nix
+# computes the fingerprint and we cannot forget an input. Learning it is
+# eval-only -- nothing is built to answer the question.
+#
+# The key cannot live in a label on the image itself: labels are an input to
+# the derivation whose output path we would be embedding, which is a cycle nix
+# cannot express. So it lives in .krump/images/, paired with the image ref, and
+# `podman image exists` covers the case where the image was removed behind our
+# back.
+#
+# Caveat: a git flake cannot see untracked files, so a `containers/foo/` you
+# have not `git add`ed yet will not move the key. It is also not in the build,
+# so the two stay consistent -- but it surprises people.
 _load-image target: _not-in-container bootstrap
-    {{ podman }} run --rm \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    stamp="{{ project_root }}/.krump/images/{{ target }}"
+    key=$(just _nix {{ nix_flags }} eval --raw .#{{ target }})
+
+    if [ -z "${KRUMP_FORCE:-}" ] && [ -f "$stamp" ]; then
+        stamped_key=$(awk 'NR==1{print $1}' "$stamp" || true)
+        stamped_ref=$(awk 'NR==1{print $2}' "$stamp" || true)
+        if [ -n "$stamped_ref" ] && [ "$stamped_key" = "$key" ] \
+           && {{ podman }} image exists "$stamped_ref"; then
+            echo "{{ target }}: $stamped_ref is already current, skipping build."
+            echo "  (set KRUMP_FORCE=1 to rebuild anyway)"
+            exit 0
+        fi
+    fi
+
+    loaded=$({{ podman }} run --rm \
       -v {{ project_root }}:{{ workspace }}{{ z }} \
       -v nix-store:/nix \
       --userns keep-id:uid=0,gid=0 \
       -w {{ workspace }} \
       {{ nix_image }} \
-      nix {{ nix_flags }} run .#{{ target }} | {{ podman }} load -q
+      nix {{ nix_flags }} run .#{{ target }} | {{ podman }} load -q)
+    echo "$loaded"
+
+    ref=$(printf '%s\n' "$loaded" | sed -n 's/.*Loaded image: *//p' | head -1)
+    mkdir -p "$(dirname "$stamp")"
+    if [ -n "$ref" ]; then
+        printf '%s %s\n' "$key" "$ref" > "$stamp"
+    else
+        # Never write a stamp we could not verify -- a wrong stamp means
+        # skipping a rebuild that was needed, which is worse than a slow one.
+        rm -f "$stamp"
+        echo "warning: could not determine the loaded image ref; not caching." >&2
+    fi
 
 _run-image image: _not-in-container _need-nix-store
     {{ podman }} run --rm -it \

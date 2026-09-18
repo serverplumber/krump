@@ -1,5 +1,8 @@
 assets/
 
+# Host-side generated state: image build stamps for the rebuild cache
+.krump/
+
 # IDE
 *.swp
 *.swo

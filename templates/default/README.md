@@ -18,6 +18,10 @@ just devcontainer  # build the dev image, let VSCode/JetBrains pick it up
 just --list        # everything else
 ```
 
+Image builds are skipped when nothing affecting the image changed, so a no-op
+`just dev` costs an eval instead of a two-minute rebuild. `KRUMP_FORCE=1`
+builds regardless.
+
 Your teammates need only `podman` and `just` for that -- nix runs inside the
 container. You need nix on the host only to update krump itself.
 
@@ -29,6 +33,7 @@ container. You need nix on the host only to update krump itself.
 | `flake.nix` | Your tools (`krump.extraTools`), env, and shell hook. |
 | `containers/` | One directory per image. `containers/foo/` becomes `foo-image`. Two examples ship; delete them. |
 | `justfile` | Host-side commands. Yours to edit; `nix flake update` won't touch it. |
+| `.krump/` | Generated build stamps for the rebuild cache. Gitignored. |
 
 ## Adding a container
 

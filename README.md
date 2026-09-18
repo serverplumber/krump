@@ -41,6 +41,8 @@ So: the flake is the install path, and the dev containers are for the developers
 
 **Base images are pinned, not pulled.** `just update-base-image busybox latest` runs `nix-prefetch-docker` and writes a pinned expression into `containers/`. External base images enter your tree as content-addressed nix, not as a floating tag.
 
+**Nix decides whether a rebuild is needed.** The streamer derivation's own store path is a complete fingerprint of the image -- contents, config, and `fakeRootCommands` all feed the derivation that produces it -- so `_load-image` asks nix for the key (eval only, nothing is built) and skips the 2-minute stream-and-load when the loaded image already matches. The key cannot be a label on the image, because labels are an input to the derivation whose output path you would be embedding; that cycle is why it lives in `.krump/images/` alongside the image ref, guarded by `podman image exists` so a stamp can never outlive its image. `KRUMP_FORCE=1` bypasses it.
+
 **One name, one place.** `project-name` is a one-line file read by both `flake.nix` and the justfile. Renaming your project is one edit, because the alternative — two sources of truth — already drifted once here.
 
 **Fork to customize.** Your opinions belong in your fork or your own flake, not in a config schema I have to anticipate. The module has four options and there will not be forty.
@@ -56,7 +58,6 @@ Known rough edges:
 - **macOS is wired up but unverified.** See below — the design works out, and the arch-specific bugs that blocked it are fixed, but I don't own a Mac and none of it has been run on one. Treat it as untested, not as working.
 - **That FHS shim is a shim.** Copying glibc and libstdc++ into FHS paths so IDE server binaries can find them is exactly the kind of hack nix exists to avoid. It's there because VSCode's remote server assumes FHS. It works. It is not principled and it will break on something.
 - **`sandbox = false`** in the container's `nix.conf`, because nix-in-podman needs it. A real caveat on the hermeticity claim, stated rather than buried.
-- **`just dev` rebuilds the image every time** rather than checking whether anything changed.
 - **The justfile is copied, not imported.** `nix flake update` brings you new krump nix code; it does not touch your justfile, because `just` can't import recipes out of a nix store path without a materialization step and a bootstrap chicken-and-egg. Host-side recipe fixes don't reach you automatically. Stated rather than pretended away.
 - **No CI yet.** `just check` runs what CI would; nothing runs it for you on push.
 
@@ -111,6 +112,10 @@ just test          # smoke test: build the image, run it, exercise the pipeline
 just fmt           # format nix, shell, markdown, and the justfile
 just --list        # everything else
 ```
+
+Image builds are skipped when nothing that affects the image changed, so a
+no-op `just dev` costs an eval rather than a two-minute rebuild. Set
+`KRUMP_FORCE=1` to build regardless.
 
 ## Consuming krump as a flake input
 
