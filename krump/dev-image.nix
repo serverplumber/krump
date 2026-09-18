@@ -1,10 +1,23 @@
-{ pkgs, projectName }:
+# The dev container: everything needed for interactive development, built from
+# the same `krump.devTools` the dev shells use.
+#
+# Takes the standard container argset (see discover.nix) rather than reaching
+# for `import ../../krump` -- that is what lets a consumer's own container get
+# at the same helpers.
+{
+  pkgs,
+  lib,
+  projectName,
+  krump,
+  containerLib,
+  ...
+}:
 
 let
-  krump = import ../../krump { inherit pkgs; };
-  containerDefaults = import ../../containers { inherit pkgs; };
   shellRc = import ./shellrc.nix { inherit pkgs krump; };
-  # Setup script to create developer user if needed (optional for local dev)
+
+  # Creates the developer user if needed, then hands off to the caller's
+  # command, or to their $SHELL if there wasn't one.
   setupScript = pkgs.writeShellScriptBin "setup-dev-user" ''
     if ! id -u developer > /dev/null 2>&1; then
       echo "developer:x:1000:1000::/workspace:/bin/sh" >> /etc/passwd
@@ -22,7 +35,8 @@ let
     esac
     exec $SHELL
   '';
-  users = containerDefaults.makeUsers [
+
+  users = containerLib.makeUsers [
     {
       name = "root";
       uid = 0;
@@ -38,6 +52,7 @@ let
       shell = "${pkgs.bash}/bin/bash";
     }
   ];
+
   # The FHS shim in fakeRootCommands exists because VSCode's remote server
   # assumes Debian-style paths. Those paths are arch-dependent, so derive them
   # instead of hardcoding x86_64: on aarch64 the hardcoded version produced an
@@ -61,7 +76,6 @@ let
 
 in
 {
-  # The dev container: everything needed for interactive development
   image = pkgs.dockerTools.streamLayeredImage {
     name = "${projectName}-dev";
     tag = "latest";
@@ -72,8 +86,8 @@ in
         krump.devTools
         ++ [
           setupScript
-          containerDefaults.nixConf
-          containerDefaults.tmpDir
+          containerLib.nixConf
+          containerLib.tmpDir
           shellRc.bash
           shellRc.zsh
           shellRc.fish
@@ -120,11 +134,11 @@ in
       # Container-specific vars here; everything shared with the dev shells
       # comes from krump.env so the two can't drift.
       Env = [
-        "PATH=${pkgs.lib.makeBinPath krump.devTools}:${pkgs.coreutils}/bin:/bin:/usr/bin"
+        "PATH=${lib.makeBinPath krump.devTools}:${pkgs.coreutils}/bin:/bin:/usr/bin"
         "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
         "LD_LIBRARY_PATH=/usr/lib/${multiarch}:/lib/${multiarch}"
       ]
-      ++ pkgs.lib.mapAttrsToList (k: v: "${k}=${v}") krump.env;
+      ++ lib.mapAttrsToList (k: v: "${k}=${v}") krump.env;
       WorkingDir = "/workspace";
     };
   };

@@ -1,8 +1,11 @@
+# Shared helpers passed to every container: an /etc/nix/nix.conf, a writable
+# /tmp, and passwd/group/shadow generation.
 { pkgs }:
 let
   tmpDir = pkgs.runCommand "tmp" { } ''
     mkdir -p $out/tmp
   '';
+
   nixConf = pkgs.writeTextFile {
     name = "nix.conf";
     destination = "/etc/nix/nix.conf";
@@ -47,19 +50,11 @@ let
     group = makeGroup users;
     shadow = makeShadow users;
   };
-
-  vscodePkgs = [
-    pkgs.stdenv.cc.cc.lib # libstdc++
-    pkgs.glibc # libc + glibc
-    pkgs.glibc.bin
-  ];
-
 in
 {
   inherit
     makeUsers
     tmpDir
     nixConf
-    vscodePkgs
     ;
 }

@@ -1,6 +1,6 @@
 {
-  "name": "krump",
-  "image": "localhost/krump-dev:latest",
+  "name": "myproject",
+  "image": "localhost/myproject-dev:latest",
   "remoteUser": "root",
   "mounts": [
     { "source": "nix-store", "target": "/nix", "type": "volume" }

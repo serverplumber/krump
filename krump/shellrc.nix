@@ -1,3 +1,5 @@
+# Shell rc files baked into the dev image, rendered from the same
+# krump.shellHook the dev shells eval.
 { pkgs, krump }:
 {
   bash = pkgs.writeTextFile {

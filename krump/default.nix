@@ -1,31 +1,49 @@
+# krump's base definition: the tool list, environment, and shell hook that both
+# the dev shells and the dev container image consume. Add something here and it
+# appears in `nix develop`, in `just dev`, and in a colleague's IDE.
+#
+# Consumers extend rather than edit this, via the module's `krump.extraTools` /
+# `extraEnv` / `extraShellHook` options.
 { pkgs }:
-{
-  devTools = with pkgs; [
-    bat
-    curl
-    eza
-    git
-    glow
-    gnugrep
-    gnused
-    harper
-    helix
-    jq
-    just
-    lowdown
-    mdformat
-    neovim
+let
+  fonts = with pkgs; [
     nerd-fonts.fira-code
     nerd-fonts.jetbrains-mono
-    nix
-    starship
-    vim
-    wget
   ];
+in
+{
+  devTools =
+    (with pkgs; [
+      bat
+      curl
+      eza
+      git
+      glow
+      gnugrep
+      gnused
+      harper
+      helix
+      jq
+      just
+      lowdown
+      mdformat
+      neovim
+      nix
+      starship
+      vim
+      wget
+    ])
+    ++ fonts;
 
   env = {
     NIXPKGS_ALLOW_UNFREE = "1";
-    FONTCONFIG_PATH = "${pkgs.nerd-fonts.jetbrains-mono}/share/fonts";
+
+    # FONTCONFIG_FILE, not FONTCONFIG_PATH. FONTCONFIG_PATH names a directory
+    # that *contains* a fonts.conf; pointed at a font directory it finds no
+    # config there and suppresses the system config instead of adding the
+    # fonts -- which is what the previous
+    # `FONTCONFIG_PATH = "${nerd-fonts.jetbrains-mono}/share/fonts"` did.
+    FONTCONFIG_FILE = "${pkgs.makeFontsConf { fontDirectories = fonts; }}";
   };
 
   shellHook = shell: ''
