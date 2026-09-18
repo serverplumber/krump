@@ -8,6 +8,7 @@
 {
   config,
   lib,
+  inputs,
   flake-parts-lib,
   ...
 }:
@@ -43,6 +44,25 @@ in
           sync -- the filesystem is the list.
 
           null disables discovery. The dev image is emitted either way.
+        '';
+      };
+
+      allowUnfree = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Allow unfree packages in `devTools` and `extraTools`.
+
+          On by default because the usual reason to add a tool here is an IDE,
+          and most IDEs are unfree -- vscode, the JetBrains family. Without
+          this, `krump.extraTools = [ pkgs.vscode ];` fails to evaluate.
+
+          Note this configures the nixpkgs instance for the whole flake, not
+          just krump's outputs. Set it false to keep nixpkgs' own default.
+
+          Setting an environment variable such as NIXPKGS_ALLOW_UNFREE does not
+          work here: that path relies on impure evaluation, and flakes evaluate
+          purely.
         '';
       };
     };
@@ -131,6 +151,18 @@ in
         };
       in
       {
+        # nixpkgs allows unfree only via its config, never via an environment
+        # variable -- NIXPKGS_ALLOW_UNFREE needs impure evaluation, which flakes
+        # do not use. mkDefault because flake-parts sets pkgs at
+        # mkOptionDefault, so this wins, while a consumer who sets pkgs
+        # explicitly still beats us.
+        _module.args.pkgs = lib.mkDefault (
+          import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfree = topCfg.allowUnfree;
+          }
+        );
+
         krump.devTools = krumpLib.devTools;
 
         devShells = {

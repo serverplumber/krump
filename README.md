@@ -57,7 +57,7 @@ Known rough edges:
 
 - **macOS is wired up but unverified.** See below — the design works out, and the arch-specific bugs that blocked it are fixed, but I don't own a Mac and none of it has been run on one. Treat it as untested, not as working.
 - **That FHS shim is a shim.** Copying glibc and libstdc++ into FHS paths so IDE server binaries can find them is exactly the kind of hack nix exists to avoid. It's there because VSCode's remote server assumes FHS. It works. It is not principled and it will break on something.
-- **`sandbox = false`** in the container's `nix.conf`, because nix-in-podman needs it. A real caveat on the hermeticity claim, stated rather than buried.
+- **`sandbox = false`** in the container's `nix.conf`. A real caveat on the hermeticity claim, stated rather than buried -- and it is not going away cheaply. Turning it on needs `--security-opt unmask=all` plus either `--cap-add SYS_ADMIN` or unconfined seccomp *and* apparmor; nothing less works (measured with `sandbox-fallback false`, since nix otherwise falls back to an unsandboxed build and reports success). That trades away more container isolation than it buys in build isolation, so it stays off. Note this is the nix **build** sandbox only: it has nothing to do with `nix develop` purity, and does not stop you launching a GUI editor from the dev shell.
 - **The justfile is copied, not imported.** `nix flake update` brings you new krump nix code; it does not touch your justfile, because `just` can't import recipes out of a nix store path without a materialization step and a bootstrap chicken-and-egg. Host-side recipe fixes don't reach you automatically. Stated rather than pretended away.
 - **No CI yet.** `just check` runs what CI would; nothing runs it for you on push.
 
@@ -154,6 +154,7 @@ krump deliberately does not define a `formatter`, so `nix fmt` stays yours: one 
 |---|---|---|
 | `krump.projectName` | string | Image names derive from it; the dev image is `<projectName>-dev:latest`. |
 | `krump.containersDir` | path or null | Scanned for container definitions. `null` disables discovery; the dev image is emitted either way. |
+| `krump.allowUnfree` | bool (default true) | Allows unfree packages. On by default because most IDEs are unfree. Configures the nixpkgs instance for the whole flake. |
 | `perSystem.krump.extraTools` | list of packages | Appended to krump's base `devTools`. Lands in the dev shells *and* the dev image. |
 | `perSystem.krump.extraEnv` | attrs of string | Merged over krump's default env. |
 | `perSystem.krump.extraShellHook` | lines | Appended to krump's shellHook. |

@@ -112,10 +112,6 @@ check-devcontainer-json:
 # cannot express. So it lives in .krump/images/, paired with the image ref, and
 # `podman image exists` covers the case where the image was removed behind our
 # back.
-#
-# Caveat: a git flake cannot see untracked files, so a `containers/foo/` you
-# have not `git add`ed yet will not move the key. It is also not in the build,
-# so the two stay consistent -- but it surprises people.
 _load-image target: _not-in-container bootstrap
     #!/usr/bin/env bash
     set -euo pipefail

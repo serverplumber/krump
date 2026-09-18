@@ -36,6 +36,10 @@ in
     ++ fonts;
 
   env = {
+    # Only affects impure nix invocations made from inside the shell, such as
+    # `nix-shell -p <something unfree>`. It does NOT make this flake's own
+    # package set allow unfree -- that needs config.allowUnfree on the nixpkgs
+    # instance, which the module's `krump.allowUnfree` option handles.
     NIXPKGS_ALLOW_UNFREE = "1";
 
     # FONTCONFIG_FILE, not FONTCONFIG_PATH. FONTCONFIG_PATH names a directory
