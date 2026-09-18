@@ -117,6 +117,32 @@ Image builds are skipped when nothing that affects the image changed, so a
 no-op `just dev` costs an eval rather than a two-minute rebuild. Set
 `KRUMP_FORCE=1` to build regardless.
 
+## If you have nix: `nix develop`
+
+You installed krump with nix, so you have nix. The container is for the people who don't.
+
+```bash
+cd your-project
+nix develop          # bash
+nix develop .#fish   # or .#zsh
+```
+
+That puts krump's tools on your `PATH` on your own machine, ahead of your host versions, while leaving the rest of your environment alone -- `DISPLAY`, `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR` and your host `PATH` all survive.
+
+Which means **launching your editor from that shell is how it picks up the project's toolchain**:
+
+```bash
+nix develop
+code .        # or zed . / nvim / idea . -- whatever you have installed on the host
+```
+
+The editor inherits the shell's environment, so its terminal, language servers, and build tasks see krump's `git`, `just`, and whatever you put in `extraTools` -- without installing any of it into your editor or your system profile.
+
+Two things to know:
+
+- **Editors that reuse a running instance won't pick up the environment.** VSCode and the JetBrains IDEs hand the path to an already-running process, which still has your login environment. Quit the editor fully before launching it from the dev shell, or use [direnv](https://direnv.net) with `use flake`, which keeps the environment attached to the directory instead of to how you launched the app.
+- **`.#zsh` and `.#fish` hand off to that shell**, loading krump's prompt on top of your own rc rather than replacing it. `nix develop .#fish -c some-command` still runs the command non-interactively.
+
 ## Consuming krump as a flake input
 
 The template is a thin consumer of the module, so this is what your `flake.nix` looks like whether or not you started from the template:
@@ -206,7 +232,7 @@ Two caveats worth knowing before you try:
 
 ## Included tools
 
-`bat` · `curl` · `eza` · `git` · `glow` · `harper` · `helix` · `jq` · `just` · `lowdown` · `mdformat` · `neovim` · `nix` · `starship` · `vim` · `wget`, plus Fira Code and JetBrains Mono nerd fonts. Shells: bash, zsh, fish — `just dev` picks up your `$SHELL`.
+`bat` · `curl` · `eza` · `git` · `glow` · `harper` · `helix` · `jq` · `just` · `lowdown` · `mdformat` · `neovim` · `nix` · `starship` · `vim` · `wget`, plus Fira Code and JetBrains Mono nerd fonts. Shells: bash, zsh, fish. In the container, `just dev` picks up your `$SHELL`; on the host, `nix develop .#fish` and `.#zsh` hand off to that shell.
 
 Add to it with `krump.extraTools` in your own flake. Edit `devTools` in `krump/default.nix` only if you're working on krump itself.
 

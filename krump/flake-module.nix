@@ -134,13 +134,48 @@ in
 
         containerLib = import ./container-lib.nix { inherit pkgs; };
 
+        # `nix develop` always starts bash, so a zsh- or fish-flavoured
+        # shellHook gets handed to bash to evaluate, which fails loudly
+        # ("syntax error near unexpected token", "zmodload: command not
+        # found"). The zsh and fish shells therefore hand off to the real shell
+        # with krump's rc for it loaded -- and only when interactive, so
+        # `nix develop .#fish -c some-command` still runs the command.
+        rcFile = shell: pkgs.writeText "krump-${shell}rc" (krumpLib.shellHook shell);
+
+        # ZDOTDIR replaces the user's zsh config rather than adding to it, so
+        # source theirs first.
+        zshDotDir = pkgs.runCommand "krump-zdotdir" { } ''
+          mkdir -p "$out"
+          {
+            echo '[ -f "$HOME/.zshrc" ] && . "$HOME/.zshrc"'
+            cat ${rcFile "zsh"}
+          } > "$out/.zshrc"
+        '';
+
+        # fish -C runs after the user's own config.fish, so theirs is kept.
+        handoff = {
+          zsh = ''
+            case $- in
+              *i*)
+                export ZDOTDIR=${zshDotDir}
+                exec ${pkgs.zsh}/bin/zsh
+                ;;
+            esac
+          '';
+          fish = ''
+            case $- in
+              *i*) exec ${pkgs.fish}/bin/fish -C 'source ${rcFile "fish"}' ;;
+            esac
+          '';
+        };
+
         mkShellFor =
-          shell: shellPkg:
+          shell: shellPkg: hook:
           pkgs.mkShell {
             name = "dev-env-${shell}-${system}";
             buildInputs = krumpLib.devTools ++ [ shellPkg ];
             inherit (krumpLib) env;
-            shellHook = krumpLib.shellHook shell;
+            shellHook = hook;
           };
 
         images = import ./discover.nix {
@@ -166,9 +201,9 @@ in
         krump.devTools = krumpLib.devTools;
 
         devShells = {
-          default = mkShellFor "bash" pkgs.bash;
-          zsh = mkShellFor "zsh" pkgs.zsh;
-          fish = mkShellFor "fish" pkgs.fish;
+          default = mkShellFor "bash" pkgs.bash (krumpLib.shellHook "bash");
+          zsh = mkShellFor "zsh" pkgs.zsh handoff.zsh;
+          fish = mkShellFor "fish" pkgs.fish handoff.fish;
         };
 
         # Container images are Linux artifacts, so these outputs only exist on
