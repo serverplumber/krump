@@ -180,7 +180,7 @@ krump deliberately does not define a `formatter`, so `nix fmt` stays yours: one 
 |---|---|---|
 | `krump.projectName` | string | Image names derive from it; the dev image is `<projectName>-dev:latest`. |
 | `krump.containersDir` | path or null | Scanned for container definitions. `null` disables discovery; the dev image is emitted either way. |
-| `krump.allowUnfree` | bool (default true) | Allows unfree packages. On by default because most IDEs are unfree. Configures the nixpkgs instance for the whole flake. |
+| `krump.allowUnfree` | bool (default false) | Allows unfree packages, matching nixpkgs's own default. Neither the dev container nor a host-installed IDE needs it; set it true only when nix itself must provide something unfree. Configures the nixpkgs instance for the whole flake. |
 | `perSystem.krump.extraTools` | list of packages | Appended to krump's base `devTools`. Lands in the dev shells *and* the dev image. |
 | `perSystem.krump.extraEnv` | attrs of string | Merged over krump's default env. |
 | `perSystem.krump.extraShellHook` | lines | Appended to krump's shellHook. |

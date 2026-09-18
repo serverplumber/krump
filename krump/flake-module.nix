@@ -49,16 +49,23 @@ in
 
       allowUnfree = mkOption {
         type = types.bool;
-        default = true;
+        default = false;
         description = ''
           Allow unfree packages in `devTools` and `extraTools`.
 
-          On by default because the usual reason to add a tool here is an IDE,
-          and most IDEs are unfree -- vscode, the JetBrains family. Without
-          this, `krump.extraTools = [ pkgs.vscode ];` fails to evaluate.
+          Off by default, matching nixpkgs: neither of krump's workflows needs
+          it. The dev container's own closure is entirely free, and the IDE
+          servers it hosts are downloaded at runtime by VSCode Remote or
+          JetBrains Gateway rather than coming from nixpkgs, so nixpkgs licence
+          policy never applies to them. Launching a host-installed editor from
+          `nix develop` does not need it either -- that editor lives outside
+          nix.
 
-          Note this configures the nixpkgs instance for the whole flake, not
-          just krump's outputs. Set it false to keep nixpkgs' own default.
+          Set it true when you want *nix* to provide something unfree, such as
+          `krump.extraTools = [ pkgs.vscode ];`, which otherwise fails to
+          evaluate. Note it configures the nixpkgs instance for the whole
+          flake, not just krump's outputs, which is why krump does not turn it
+          on for you.
 
           Setting an environment variable such as NIXPKGS_ALLOW_UNFREE does not
           work here: that path relies on impure evaluation, and flakes evaluate

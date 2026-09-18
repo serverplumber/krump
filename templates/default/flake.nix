@@ -34,9 +34,10 @@
         # image, because both consume the same list.
         krump.extraTools = [ ];
 
-        # Unfree packages are allowed by default, so an IDE works here:
+        # Unfree packages are off, as in nixpkgs. You only need this if nix
+        # itself must provide something unfree -- a host-installed IDE does not
+        # count. Then: `krump.allowUnfree = true;` above, and e.g.
         #   krump.extraTools = [ pkgs.vscode ];
-        # Set `krump.allowUnfree = false;` above to opt out.
 
         # krump.extraEnv = { RUST_BACKTRACE = "1"; };
         # krump.extraShellHook = ''echo "hello from the dev shell"'';
